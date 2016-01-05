@@ -3,6 +3,7 @@ Install Ubuntu 14.04 LTS Server
 
 Download Ubuntu server 14.04 LTS
 http://releases.ubuntu.com/14.04.3/ubuntu-14.04.3-server-amd64.iso
+
 * make user ids, password ids
 * make two network interfaces: 
 * monitor: one NAT with host, make sure it has this MAC "00:0c:29:bf:54:51"
@@ -12,6 +13,7 @@ http://releases.ubuntu.com/14.04.3/ubuntu-14.04.3-server-amd64.iso
 * Select OpenSSH server for addition
 
 Update/upgrade all packages
+
   	sudo apt-get update -q -y # Ignore the errors about having the cdrom loaded
   	sudo apt-get upgrade -q -y 
   	sudo apt-get install --no-install-recommends ubuntu-desktop -q -y
@@ -22,6 +24,7 @@ Update/upgrade all packages
 Reboot.
 
 Remove guest login
+
     sudo bash -c 'cat > /usr/share/lightdm/lightdm.conf.d/50-ubuntu.conf <<EOL
     [SeatDefaults]
     user-session=ubuntu
@@ -111,23 +114,28 @@ Setup network
 -------------
 
 Rename the interfaces, monitor for the tap, manager for access to the config/apache
+
     sudo bash -c 'cat > /etc/udev/rules.d/70-persistent-net.rules <<EOL
     SUBSYSTEM=="net", ACTION=="add", DRIVERS=="?*", ATTR{dev_id}=="0x0", ATTR{type}=="1", ATTR{address}=="00:0c:29:bf:54:5b", KERNEL=="eth?", NAME="monitor"
     SUBSYSTEM=="net", ACTION=="add", DRIVERS=="?*", ATTR{dev_id}=="0x0", ATTR{type}=="1", ATTR{address}=="00:0c:29:bf:54:51", KERNEL=="eth?", NAME="manager"
     EOL'	
 
 Setup the interfaces properly
+
     sudo bash -c 'cat > /etc/udev/rules.d/70-persistent-net.rules <<EOL
 
 The loopback network interface
+
     auto lo
     iface lo inet loopback
 
 The manager network interface
+
     auto manager 
     iface manager inet dhcp
 
 The monitor network interface
+
     auto monitor 
     iface monitor inet manual
     	up ifconfig monitor up promisc
@@ -135,15 +143,18 @@ The monitor network interface
     EOL'
 
 Eliminate system swappiness to prevent stuff from being swapped out
+
     sudo bash -c "echo 'vm.swappiness = 0' >> /etc/sysctl.conf"
 	
 Install Bro 2.4.1
 ===============================
 
 Install Dependencies
+
     sudo apt-get install cmake make git gcc g++ flex bison libpcap-dev libssl-dev python-dev swig zlib1g-dev git libcurl4-gnutls-dev -q -y
 
 Download and install Bro
+
     cd ~
     git clone --recursive git://git.bro.org/bro
     cd bro
@@ -151,24 +162,29 @@ Download and install Bro
     rm ~/bro* -rf
 
 Add the capability for Bro to output directly to elasticsearch
+
     cd ~
     git clone https://github.com/bro/bro-plugins
     cd bro-plugins
     ./configure --bro-dist=/home/ids/bro && make && make install
 
 Double check that the plugin is active
+
     /nsm/bro/bin/bro -N Bro::ElasticSearch
 
 Add bro user
+
     sudo adduser --system --ingroup nsm --home /nsm/bro --shell /sbin/nologin bro
     sudo usermod -a -G syslog bro
     sudo chown bro.nsm /nsm/bro -R
 
 Allow 'bro' to capture off the interface
+
     sudo setcap cap_net_raw,cap_net_admin=eip /nsm/bro/bin/bro
 
 Make a script that runs bro with upstart	(Brutally hacky, but if someone else has a better idea, let me know)
 Copy and paste all lines below:
+
     sudo -u bro bash -c 'cat > /nsm/bro/bin/start.sh <<EOL
     #!/bin/bash
 
@@ -188,9 +204,11 @@ Copy and paste all lines below:
     EOL'
 
 Make the script executable
+
     sudo -u bro chmod 755 /nsm/bro/bin/start.sh
 	
 Add the startup job to upstart
+
     sudo bash -c 'cat > /etc/init/bro.conf <<EOL
     #!upstart                                                                       
     description "Bro Service"                                                       
@@ -212,6 +230,7 @@ Add the startup job to upstart
     EOL'
 
 Make sure bro extracts files!
+
     sudo -u bro cat >> /nsm/bro/share/bro/site/local.bro <<EOL
     @load frameworks/files/extract-all-files.bro
     redef ignore_checksums = T;
@@ -223,12 +242,14 @@ ELK stack install (plus Java 8)
 ===============================
 
 Install Java 8
+
     sudo add-apt-repository -y ppa:webupd8team/java
     sudo apt-get update -y
     sudo apt-get install oracle-java8-installer -y
 
 Install Logstash
 -------------
+
     cd ~
     wget https://download.elastic.co/logstash/logstash/logstash-2.1.1.tar.gz
     tar xzvf logstash-2.1.1.tar.gz 
@@ -263,12 +284,15 @@ Install Logstash
     EOL'
 
 Test out the config
+
     sudo -u logstash /nsm/logstash/bin/logstash -f /nsm/logstash/config/debug.conf
 
 Paste the following into the terminal to simulate an apache log
+
     127.0.0.1 - - [11/Dec/2013:00:01:45 -0800] "GET /xampp/status.php HTTP/1.1" 200 3891 "http://cadenza/xampp/navi.php" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.9; rv:25.0) Gecko/20100101 Firefox/25.0"
 
 Create logstash service to be called when wanting to listen out on the tap
+
     sudo bash -c 'cat > /etc/init/logstash.conf <<EOL
     #!upstart
     description "Logstash Service"
@@ -289,6 +313,7 @@ Install Elasticsearch
 -------------
 
 Download and unpack
+
     cd ~
     wget https://download.elasticsearch.org/elasticsearch/release/org/elasticsearch/distribution/tar/elasticsearch/2.1.1/elasticsearch-2.1.1.tar.gz
     tar xvzf elasticsearch-2.1.1.tar.gz
@@ -297,11 +322,13 @@ Download and unpack
     rm ~/elasticsearch* -rf
 
 Add elasticsearch user
+
     sudo adduser --system --ingroup nsm --home /nsm/elasticsearch --shell /sbin/nologin elasticsearch
     sudo usermod -a -G syslog elasticsearch
     sudo chown elasticsearch.nsm /nsm/elasticsearch -R
 
 Create elasticsearch job to ensure elasticsearch is always running
+
     sudo bash -c 'cat > /etc/init/elasticsearch.conf <<EOL
     #!upstart
     description "elasticsearch Service"
@@ -321,6 +348,7 @@ Install Kibana
 -------------
 
 Download and unpack
+
     cd ~
     wget https://download.elastic.co/kibana/kibana/kibana-4.3.1-linux-x64.tar.gz
     tar xvzf kibana-4.3.1-linux-x64.tar.gz
@@ -329,11 +357,13 @@ Download and unpack
     rm ~/kibana* -rf
 
 Add kibana user
+
     sudo adduser --system --ingroup nsm --home /nsm/kibana --shell /sbin/nologin kibana
     sudo usermod -a -G syslog kibana
     sudo chown kibana.nsm /nsm/kibana -R
 
 Create kibana job to ensure kibana is always running
+
     sudo bash -c 'cat > /etc/init/kibana.conf <<EOL
     #!upstart
     description "Kibana Service"
@@ -351,4 +381,5 @@ Create kibana job to ensure kibana is always running
     EOL'
 
 Make sure the paths are set
+
     sudo vim /etc/environment # add /nsm/bro/bin to PATH
