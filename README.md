@@ -6,8 +6,8 @@ http://releases.ubuntu.com/14.04.3/ubuntu-14.04.3-server-amd64.iso
 
 * make user ids, password ids
 * make two network interfaces: 
-* monitor: one NAT with host, make sure it has this MAC "00:0c:29:bf:54:51"
-* manager: one VMnet for management, make sure it has this MAC "00:0c:29:bf:54:5b"
+  * monitor: one NAT with host, make sure it has this MAC "00:0c:29:bf:54:51"
+  * manager: one VMnet for management, make sure it has this MAC "00:0c:29:bf:54:5b"
 * make new user: ids,ids
 * do not encrypt home directory
 * Select OpenSSH server for addition
@@ -31,9 +31,12 @@ Remove guest login
     allow-guest=false
     EOL'
     	
-    ## Add nsm group 
-    sudo addgroup --system nsm
-    ### Setup .vimrc
+Add nsm group 
+
+      sudo addgroup --system nsm
+
+Setup .vimrc
+
     cat > ~/.vimrc << EOL
     set nocompatible                       
     filetype off                                   
@@ -69,7 +72,8 @@ Remove guest login
     set smartcase
     EOL
 
-    ### Setup .bashrc
+Setup .bashrc
+
     cat > ~/.bashrc << EOL
     # ~/.bashrc: executed by bash(1) for non-login shells.
     # If not running interactively, don't do anything
@@ -250,6 +254,8 @@ Install Java 8
 Install Logstash
 -------------
 
+Download logstash
+
     cd ~
     wget https://download.elastic.co/logstash/logstash/logstash-2.1.1.tar.gz
     tar xzvf logstash-2.1.1.tar.gz 
@@ -257,13 +263,14 @@ Install Logstash
     sudo mv logstash-2.1.1/* /nsm/logstash/
     rm ~/logstash* -rf
 
-    ### Add logstash user
+Add logstash user
+
     sudo adduser --system --ingroup nsm --home /nsm/logstash --shell /sbin/nologin logstash
     sudo usermod -a -G syslog logstash
     sudo chown logstash.nsm /nsm/logstash -R
 
-    ### Verify 
-    ####add a new config
+Verify and add a new config
+
     sudo -u logstash mkdir /nsm/logstash/config
     sudo -u logstash mkdir /nsm/logstash/config/debug
     sudo -u logstash bash -c 'cat > /nsm/logstash/config/debug.conf <<EOL
