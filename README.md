@@ -3,13 +3,13 @@ Install Ubuntu 14.04 LTS Server
 
 Download Ubuntu server 14.04 LTS
 http://releases.ubuntu.com/14.04.3/ubuntu-14.04.3-server-amd64.iso
-	* make user ids, password ids
-	* make two network interfaces: 
-		* monitor: one NAT with host, make sure it has this MAC "00:0c:29:bf:54:51"
-		* manager: one VMnet for management, make sure it has this MAC "00:0c:29:bf:54:5b"
-	* make new user: ids,ids
-	* do not encrypt home directory
-	* Select OpenSSH server for addition
+* make user ids, password ids
+* make two network interfaces: 
+* monitor: one NAT with host, make sure it has this MAC "00:0c:29:bf:54:51"
+* manager: one VMnet for management, make sure it has this MAC "00:0c:29:bf:54:5b"
+* make new user: ids,ids
+* do not encrypt home directory
+* Select OpenSSH server for addition
 
 Update/upgrade all packages
   	sudo apt-get update -q -y # Ignore the errors about having the cdrom loaded
