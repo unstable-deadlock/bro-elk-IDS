@@ -14,12 +14,14 @@ http://releases.ubuntu.com/14.04.3/ubuntu-14.04.3-server-amd64.iso
 
 Update/upgrade all packages
 
-  	sudo apt-get update -q -y # Ignore the errors about having the cdrom loaded
-  	sudo apt-get upgrade -q -y 
-  	sudo apt-get install --no-install-recommends ubuntu-desktop -q -y
-  	sudo reboot
-  	// Ctrl-Alt-F2 to login on terminal
-  	sudo apt-get install open-vm-tools-desktop gnome-terminal unity-lens-applications unity-lens-files -q -y
+    sudo apt-get update -q -y # Ignore the errors about having the cdrom loaded
+    sudo apt-get upgrade -q -y 
+    sudo apt-get install --no-install-recommends ubuntu-desktop -q -y
+    sudo reboot
+
+Ctrl-Alt-F2 to login on terminal.
+
+    sudo apt-get install open-vm-tools-desktop gnome-terminal unity-lens-applications unity-lens-files indicator-session -q -y
 
 Reboot.
 
@@ -30,7 +32,7 @@ Remove guest login
     user-session=ubuntu
     allow-guest=false
     EOL'
-    	
+        
 Add nsm group 
 
       sudo addgroup --system nsm
@@ -122,34 +124,47 @@ Rename the interfaces, monitor for the tap, manager for access to the config/apa
     sudo bash -c 'cat > /etc/udev/rules.d/70-persistent-net.rules <<EOL
     SUBSYSTEM=="net", ACTION=="add", DRIVERS=="?*", ATTR{dev_id}=="0x0", ATTR{type}=="1", ATTR{address}=="00:0c:29:bf:54:5b", KERNEL=="eth?", NAME="monitor"
     SUBSYSTEM=="net", ACTION=="add", DRIVERS=="?*", ATTR{dev_id}=="0x0", ATTR{type}=="1", ATTR{address}=="00:0c:29:bf:54:51", KERNEL=="eth?", NAME="manager"
-    EOL'	
+    EOL'    
 
 Setup the interfaces properly
 
     sudo bash -c 'cat > /etc/udev/rules.d/70-persistent-net.rules <<EOL
 
-The loopback network interface
-
+    # The loopback network interface
     auto lo
     iface lo inet loopback
 
-The manager network interface
-
+    # The manager network interface
     auto manager 
     iface manager inet dhcp
+        pre-up /sbin/ethtool -K manager rx off
+        pre-up /sbin/ethtool -K manager tx off
+        pre-up /sbin/ethtool -K manager sg off
+        pre-up /sbin/ethtool -K manager tso off
+        pre-up /sbin/ethtool -K manager ufo off
+        pre-up /sbin/ethtool -K manager gso off
+        pre-up /sbin/ethtool -K manager gro off
+        pre-up /sbin/ethtool -K manager lro off
 
-The monitor network interface
-
+    # The monitor network interface
     auto monitor 
     iface monitor inet manual
-    	up ifconfig monitor up promisc
-    	down ifconfig monitor down -promisc
+        pre-up /sbin/ethtool -K monitor rx off
+        pre-up /sbin/ethtool -K monitor tx off
+        pre-up /sbin/ethtool -K monitor sg off
+        pre-up /sbin/ethtool -K monitor tso off
+        pre-up /sbin/ethtool -K monitor ufo off
+        pre-up /sbin/ethtool -K monitor gso off
+        pre-up /sbin/ethtool -K monitor gro off
+        pre-up /sbin/ethtool -K monitor lro off
+        up ifconfig monitor up promisc
+        down ifconfig monitor down -promisc
     EOL'
 
 Eliminate system swappiness to prevent stuff from being swapped out
 
     sudo bash -c "echo 'vm.swappiness = 0' >> /etc/sysctl.conf"
-	
+    
 Install Bro 2.4.1
 ===============================
 
@@ -165,17 +180,6 @@ Download and install Bro
     ./configure --disable-broker --prefix=/nsm/bro && make && sudo make install
     rm ~/bro* -rf
 
-Add the capability for Bro to output directly to elasticsearch
-
-    cd ~
-    git clone https://github.com/bro/bro-plugins
-    cd bro-plugins
-    ./configure --bro-dist=/home/ids/bro && make && make install
-
-Double check that the plugin is active
-
-    /nsm/bro/bin/bro -N Bro::ElasticSearch
-
 Add bro user
 
     sudo adduser --system --ingroup nsm --home /nsm/bro --shell /sbin/nologin bro
@@ -186,14 +190,13 @@ Allow 'bro' to capture off the interface
 
     sudo setcap cap_net_raw,cap_net_admin=eip /nsm/bro/bin/bro
 
-Make a script that runs bro with upstart	(Brutally hacky, but if someone else has a better idea, let me know)
+Make a script that runs bro with upstart    (Brutally hacky, but if someone else has a better idea, let me know)
 Copy and paste all lines below:
 
     sudo -u bro bash -c 'cat > /nsm/bro/bin/start.sh <<EOL
     #!/bin/bash
-
     while true; do
-    		sleep 10
+            sleep 10
             case "$(pidof bro | wc -w)" in
             0) exit
                ;;
@@ -210,7 +213,7 @@ Copy and paste all lines below:
 Make the script executable
 
     sudo -u bro chmod 755 /nsm/bro/bin/start.sh
-	
+    
 Add the startup job to upstart
 
     sudo bash -c 'cat > /etc/init/bro.conf <<EOL
@@ -223,8 +226,6 @@ Add the startup job to upstart
                                                                                     
     respawn                                                                         
     pre-start script                                                                
-        ethtool -K manager gro off gso off rx off tx off                    
-        ethtool -K monitor gro off gso off rx off tx off                                           
         sudo -u bro /nsm/bro/bin/broctl start                                       
     end script                                                                      
                                                                                     
@@ -241,7 +242,7 @@ Make sure bro extracts files!
     # Change the defaults in the plugin below and uncomment it to enable direct logging to elasticsearch
     #@load Bro/ElasticSearch/logs-to-elasticsearch.bro
     EOL
-
+    
 ELK stack install (plus Java 8)
 ===============================
 
@@ -251,16 +252,16 @@ Install Java 8
     sudo apt-get update -y
     sudo apt-get install oracle-java8-installer -y
 
-Install Logstash
+Install Logstash 2.2.0
 -------------
 
 Download logstash
 
     cd ~
-    wget https://download.elastic.co/logstash/logstash/logstash-2.1.1.tar.gz
-    tar xzvf logstash-2.1.1.tar.gz 
+    wget https://download.elastic.co/logstash/logstash/logstash-2.2.0.tar.gz
+    tar xzvf logstash-2.2.0.tar.gz 
     sudo mkdir /nsm/logstash
-    sudo mv logstash-2.1.1/* /nsm/logstash/
+    sudo mv logstash-2.2.0/* /nsm/logstash/
     rm ~/logstash* -rf
 
 Add logstash user
@@ -271,9 +272,9 @@ Add logstash user
 
 Verify and add a new config
 
-    sudo -u logstash mkdir /nsm/logstash/config
-    sudo -u logstash mkdir /nsm/logstash/config/debug
-    sudo -u logstash bash -c 'cat > /nsm/logstash/config/debug.conf <<EOL
+    sudo -u logstash mkdir /nsm/logstash/etc
+    sudo -u logstash mkdir /nsm/logstash/etc/debug
+    sudo -u logstash bash -c 'cat > /nsm/logstash/etc/debug.conf <<EOL
     input { stdin { } }
 
     filter {
@@ -292,7 +293,7 @@ Verify and add a new config
 
 Test out the config
 
-    sudo -u logstash /nsm/logstash/bin/logstash -f /nsm/logstash/config/debug.conf
+    sudo -u logstash /nsm/logstash/bin/logstash -f /nsm/logstash/etc/debug.conf
 
 Paste the following into the terminal to simulate an apache log
 
@@ -313,8 +314,10 @@ Create logstash service to be called when wanting to listen out on the tap
 
     respawn
 
-    exec /nsm/logstash/bin/logstash -f /nsm/logstash/config/
+    exec /nsm/logstash/bin/logstash -f /nsm/logstash/etc/logstash.conf
     EOL'
+
+Save the logstash_bro.conf below into /nsm/logstash/etc/
 
 Install Elasticsearch
 -------------
@@ -322,10 +325,10 @@ Install Elasticsearch
 Download and unpack
 
     cd ~
-    wget https://download.elasticsearch.org/elasticsearch/release/org/elasticsearch/distribution/tar/elasticsearch/2.1.1/elasticsearch-2.1.1.tar.gz
-    tar xvzf elasticsearch-2.1.1.tar.gz
+    wget https://download.elasticsearch.org/elasticsearch/release/org/elasticsearch/distribution/tar/elasticsearch/2.2.0/elasticsearch-2.2.0.tar.gz
+    tar xvzf elasticsearch-2.2.0.tar.gz
     sudo mkdir /nsm/elasticsearch
-    sudo mv ~/elasticsearch-2.1.1/* /nsm/elasticsearch/
+    sudo mv ~/elasticsearch-2.2.0/* /nsm/elasticsearch/
     rm ~/elasticsearch* -rf
 
 Add elasticsearch user
@@ -351,16 +354,23 @@ Create elasticsearch job to ensure elasticsearch is always running
     exec /nsm/elasticsearch/bin/elasticsearch
     EOL'
 
+Edit /nsm/elasticsearch/etc/elasticsearch.yml to set:
+
+    # Set the bind address to a specific IP (IPv4 or IPv6):
+    network.host: 127.0.0.1
+    # Set a custom port for HTTP:
+    http.port: 9200
+
 Install Kibana
 -------------
 
 Download and unpack
 
     cd ~
-    wget https://download.elastic.co/kibana/kibana/kibana-4.3.1-linux-x64.tar.gz
-    tar xvzf kibana-4.3.1-linux-x64.tar.gz
+    wget https://download.elastic.co/kibana/kibana/kibana-4.4.0-linux-x64.tar.gz
+    tar xvzf kibana-4.4.0-linux-x64.tar.gz
     sudo mkdir /nsm/kibana
-    sudo mv ~/kibana-4.3.1-linux-x64/* /nsm/kibana/
+    sudo mv ~/kibana-4.4.0-linux-x64/* /nsm/kibana/
     rm ~/kibana* -rf
 
 Add kibana user
@@ -387,6 +397,11 @@ Create kibana job to ensure kibana is always running
     exec /nsm/kibana/bin/kibana
     EOL'
 
-Make sure the paths are set
+Edit /nsm/kibana/etc/kibana.yml to configure these at the bare minimum:
 
-    sudo vim /etc/environment # add /nsm/bro/bin to PATH
+    # Kibana is served by a back end server. This controls which port to use.
+    server.port: 5601
+    # The host to bind the server to.
+    server.host: "0.0.0.0"
+    # The Elasticsearch instance to use for all your queries.
+    elasticsearch.url: "http://localhost:9200"
