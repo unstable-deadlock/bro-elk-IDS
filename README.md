@@ -317,6 +317,42 @@ Create logstash service to be called when wanting to listen out on the tap
     exec /nsm/logstash/bin/logstash -f /nsm/logstash/etc/logstash.conf
     EOL'
 
+Add the Bro input gem to the logstash Gemfile in order to automatically parse Bro logs...no regex required.
+
+    echo 'gem "logstash-input-bro", :github => "BrashEndeavours/logstash-input-bro"' >> /nsm/logstash/Gemfile
+
+Update the installed plugins.
+
+    /nsm/logstash/bin/plugin install --no-verify
+
+Should result in...
+
+    Installing...
+    Installation successful
+
+Now to use this inside the logstash config file....
+
+Note 1: There has to be a bro entry like below for each expected file log.  They dont have to always exist. This plugin will watch the filesystem, and grab the log when it is created. It will also parse out field types and format them correctly. 
+
+Note 2: the sincedb is set to null for testing, so that every time it runs, logstash pulls all the entries out. If you want a tail behaviour, set this to something non-null.
+
+##### Sample.conf
+
+    input {
+        bro {
+            type => "conn"
+            path => "/path_to/conn.log"
+            start_position => "beginning"
+            sincedb_path => "/dev/null"
+        }
+    }
+    output {
+    #   stdout { codec => rubydebug }
+        elasticsearch {
+          hosts => ["127.0.0.1:9200"]
+        }
+    }
+
 Save the logstash_bro.conf below into /nsm/logstash/etc/
 
 Install Elasticsearch
