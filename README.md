@@ -5,7 +5,7 @@ Download Ubuntu server 14.04 LTS
 http://releases.ubuntu.com/14.04.3/ubuntu-14.04.3-server-amd64.iso
 
 * make user ids, password ids
-* make two network interfaces: 
+* make two network interfaces:
   * monitor: one NAT with host, make sure it has this MAC "00:0c:29:bf:54:51"
   * manager: one VMnet for management, make sure it has this MAC "00:0c:29:bf:54:5b"
 * make new user: ids,ids
@@ -15,7 +15,7 @@ http://releases.ubuntu.com/14.04.3/ubuntu-14.04.3-server-amd64.iso
 Update/upgrade all packages
 
     sudo apt-get update -q -y # Ignore the errors about having the cdrom loaded
-    sudo apt-get upgrade -q -y 
+    sudo apt-get upgrade -q -y
     sudo apt-get install --no-install-recommends ubuntu-desktop -q -y
     sudo reboot
 
@@ -32,45 +32,45 @@ Remove guest login
     user-session=ubuntu
     allow-guest=false
     EOL'
-        
-Add nsm group 
+
+Add nsm group
 
       sudo addgroup --system nsm
 
 Setup .vimrc
 
     cat > ~/.vimrc << EOL
-    set nocompatible                       
-    filetype off                                   
-    filetype plugin indent on                                      
-    autocmd! bufwritepost .vimrc source %                                           
-    autocmd BufWritePre *.* :%s/\s\+$//e                                            
-    set bs=2                                                                        
-    autocmd ColorScheme * highlight ExtraWhitespace ctermbg=red guibg=red           
-    au InsertLeave * match ExtraWhitespace /\s\+$/                                  
-    syntax on                                                                       
-    set nocompatible                                                                
-    set nocp                                                                        
-    set nonumber                                                                    
-    set tw=79                                                                       
-    set nowrap                                                                      
-    set fo-=t                                                                       
-    set colorcolumn=80                                                              
-    set norelativenumber                                                            
-    "au FocusLost * :set number                                                     
-    "au FocusGained * :set relativenumber                                           
-    set t_Co=256                                                                    
-    color desert                                                                    
-    highlight ColorColumn ctermbg=red                                               
-    highlight LineNr ctermfg=235                                                    
-    set tabstop=4                                                                   
-    set softtabstop=4                                                               
-    set shiftwidth=4                                                                
-    set shiftround                                                                  
-    set expandtab                                                                   
-    set hlsearch                                                                    
-    set incsearch                                                                   
-    set ignorecase                                                                  
+    set nocompatible
+    filetype off
+    filetype plugin indent on
+    autocmd! bufwritepost .vimrc source %
+    autocmd BufWritePre *.* :%s/\s\+$//e
+    set bs=2
+    autocmd ColorScheme * highlight ExtraWhitespace ctermbg=red guibg=red
+    au InsertLeave * match ExtraWhitespace /\s\+$/
+    syntax on
+    set nocompatible
+    set nocp
+    set nonumber
+    set tw=79
+    set nowrap
+    set fo-=t
+    set colorcolumn=80
+    set norelativenumber
+    "au FocusLost * :set number
+    "au FocusGained * :set relativenumber
+    set t_Co=256
+    color desert
+    highlight ColorColumn ctermbg=red
+    highlight LineNr ctermfg=235
+    set tabstop=4
+    set softtabstop=4
+    set shiftwidth=4
+    set shiftround
+    set expandtab
+    set hlsearch
+    set incsearch
+    set ignorecase
     set smartcase
     EOL
 
@@ -124,18 +124,18 @@ Rename the interfaces, monitor for the tap, manager for access to the config/apa
     sudo bash -c 'cat > /etc/udev/rules.d/70-persistent-net.rules <<EOL
     SUBSYSTEM=="net", ACTION=="add", DRIVERS=="?*", ATTR{dev_id}=="0x0", ATTR{type}=="1", ATTR{address}=="00:0c:29:bf:54:5b", KERNEL=="eth?", NAME="monitor"
     SUBSYSTEM=="net", ACTION=="add", DRIVERS=="?*", ATTR{dev_id}=="0x0", ATTR{type}=="1", ATTR{address}=="00:0c:29:bf:54:51", KERNEL=="eth?", NAME="manager"
-    EOL'    
+    EOL'
 
 Setup the interfaces properly
 
-    sudo bash -c 'cat > /etc/udev/rules.d/70-persistent-net.rules <<EOL
+    sudo bash -c 'cat > /etc/network/interfaces <<EOL
 
     # The loopback network interface
     auto lo
     iface lo inet loopback
 
     # The manager network interface
-    auto manager 
+    auto manager
     iface manager inet dhcp
         pre-up /sbin/ethtool -K manager rx off
         pre-up /sbin/ethtool -K manager tx off
@@ -147,7 +147,7 @@ Setup the interfaces properly
         pre-up /sbin/ethtool -K manager lro off
 
     # The monitor network interface
-    auto monitor 
+    auto monitor
     iface monitor inet manual
         pre-up /sbin/ethtool -K monitor rx off
         pre-up /sbin/ethtool -K monitor tx off
@@ -164,7 +164,7 @@ Setup the interfaces properly
 Eliminate system swappiness to prevent stuff from being swapped out
 
     sudo bash -c "echo 'vm.swappiness = 0' >> /etc/sysctl.conf"
-    
+
 Install Bro 2.4.1
 ===============================
 
@@ -213,24 +213,24 @@ Copy and paste all lines below:
 Make the script executable
 
     sudo -u bro chmod 755 /nsm/bro/bin/start.sh
-    
+
 Add the startup job to upstart
 
     sudo bash -c 'cat > /etc/init/bro.conf <<EOL
-    #!upstart                                                                       
-    description "Bro Service"                                                       
-    author "Blake Mackey"                                                           
-                                                                                    
-    start on runlevel []                                                            
-    stop on runlevel []                                                             
-                                                                                    
-    respawn                                                                         
-    pre-start script                                                                
-        sudo -u bro /nsm/bro/bin/broctl start                                       
-    end script                                                                      
-                                                                                    
-    exec sudo -u bro /nsm/bro/bin/start.sh                                          
-                                                                                    
+    #!upstart
+    description "Bro Service"
+    author "Blake Mackey"
+
+    start on runlevel []
+    stop on runlevel []
+
+    respawn
+    pre-start script
+        sudo -u bro /nsm/bro/bin/broctl start
+    end script
+
+    exec sudo -u bro /nsm/bro/bin/start.sh
+
     pre-stop exec sudo -u bro /nsm/bro/bin/broctl stop
     EOL'
 
@@ -242,7 +242,7 @@ Make sure bro extracts files!
     # Change the defaults in the plugin below and uncomment it to enable direct logging to elasticsearch
     #@load Bro/ElasticSearch/logs-to-elasticsearch.bro
     EOL
-    
+
 ELK stack install (plus Java 8)
 ===============================
 
@@ -259,7 +259,7 @@ Download logstash
 
     cd ~
     wget https://download.elastic.co/logstash/logstash/logstash-2.2.0.tar.gz
-    tar xzvf logstash-2.2.0.tar.gz 
+    tar xzvf logstash-2.2.0.tar.gz
     sudo mkdir /nsm/logstash
     sudo mv logstash-2.2.0/* /nsm/logstash/
     rm ~/logstash* -rf
@@ -332,7 +332,7 @@ Should result in...
 
 Now to use this inside the logstash config file....
 
-Note 1: There has to be a bro entry like below for each expected file log.  They dont have to always exist. This plugin will watch the filesystem, and grab the log when it is created. It will also parse out field types and format them correctly. 
+Note 1: There has to be a bro entry like below for each expected file log.  They dont have to always exist. This plugin will watch the filesystem, and grab the log when it is created. It will also parse out field types and format them correctly.
 
 Note 2: the sincedb is set to null for testing, so that every time it runs, logstash pulls all the entries out. If you want a tail behaviour, set this to something non-null.
 
