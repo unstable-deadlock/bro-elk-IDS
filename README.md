@@ -1,10 +1,13 @@
-Install Ubuntu 14.04 LTS Server
+How to install ELK Stack/Elastic Stack on Ubuntu 16.04 LTS Server
 ===============================
 
-Download Ubuntu server 14.04 LTS
-http://releases.ubuntu.com/14.04.3/ubuntu-14.04.3-server-amd64.iso
+Install Ubuntu 16.04 LTS Server
+===============================
 
-* make user ids, password ids
+Download Ubuntu server 16.04 LTS
+http://releases.ubuntu.com/16.04/ubuntu-16.04.1-desktop-amd64.iso
+
+* make user ids, password xxx
 * make two network interfaces:
   * monitor: one NAT with host, make sure it has this MAC "00:0c:29:bf:54:51"
   * manager: one VMnet for management, make sure it has this MAC "00:0c:29:bf:54:5b"
@@ -35,7 +38,7 @@ Remove guest login
 
 Add nsm group
 
-      sudo addgroup --system nsm
+    sudo addgroup --system nsm
 
 Setup .vimrc
 
@@ -165,7 +168,7 @@ Eliminate system swappiness to prevent stuff from being swapped out
 
     sudo bash -c "echo 'vm.swappiness = 0' >> /etc/sysctl.conf"
 
-Install Bro 2.4.1
+Install Bro 2.5
 ===============================
 
 Install Dependencies
@@ -214,25 +217,26 @@ Make the script executable
 
     sudo -u bro chmod 755 /nsm/bro/bin/start.sh
 
-Add the startup job to upstart
+Add the startup job to systemd
 
-    sudo bash -c 'cat > /etc/init/bro.conf <<EOL
-    #!upstart
-    description "Bro Service"
-    author "Blake Mackey"
+    sudo bash -c 'cat > /etc/systemd/system/bro.service <<EOL
+    [Unit]
+    Description=Bro Network Intrusion Detection System (NIDS)
+    After=network.target
 
-    start on runlevel []
-    stop on runlevel []
+    [Service]
+    User=bro
+    Type=forking
+    Environment=HOME=/
+    ExecStart=/nsm/bro/bin/broctl start
 
-    respawn
-    pre-start script
-        sudo -u bro /nsm/bro/bin/broctl start
-    end script
-
-    exec sudo -u bro /nsm/bro/bin/start.sh
-
-    pre-stop exec sudo -u bro /nsm/bro/bin/broctl stop
+    [Install]
+    WantedBy=multi-user.target
     EOL'
+    
+Enable the Bro service
+    
+    sudo systemctl enable bro.service
 
 Make sure bro extracts files!
 
@@ -242,8 +246,16 @@ Make sure bro extracts files!
     # Change the defaults in the plugin below and uncomment it to enable direct logging to elasticsearch
     #@load Bro/ElasticSearch/logs-to-elasticsearch.bro
     EOL
+    
+Edit Bro configuration files to suit
 
-ELK stack install (plus Java 8)
+    sudo -u bro vi /nsm/bro/etc/node.cfg
+    
+Deploy configuration files/check for errors (Do this every time after editing config files)
+
+    sudo -u bro /nsm/bro/bin/broctl deploy
+
+Elastic stack install (plus Java 8)
 ===============================
 
 Install Java 8
@@ -252,16 +264,16 @@ Install Java 8
     sudo apt-get update -y
     sudo apt-get install oracle-java8-installer -y
 
-Install Logstash 2.2.0
+Install Logstash 5.0.0-alpha5
 -------------
 
 Download logstash
 
     cd ~
-    wget https://download.elastic.co/logstash/logstash/logstash-2.2.0.tar.gz
-    tar xzvf logstash-2.2.0.tar.gz
+    wget https://download.elastic.co/logstash/logstash/logstash-5.0.0-alpha5.tar.gz
+    tar xzvf logstash-5.0.0-alpha5.tar.gz
     sudo mkdir /nsm/logstash
-    sudo mv logstash-2.2.0/* /nsm/logstash/
+    sudo mv logstash-5.0.0-alpha5/* /nsm/logstash/
     rm ~/logstash* -rf
 
 Add logstash user
@@ -272,9 +284,9 @@ Add logstash user
 
 Verify and add a new config
 
-    sudo -u logstash mkdir /nsm/logstash/etc
-    sudo -u logstash mkdir /nsm/logstash/etc/debug
-    sudo -u logstash bash -c 'cat > /nsm/logstash/etc/debug.conf <<EOL
+    sudo -u logstash mkdir /nsm/logstash/config
+    sudo -u logstash mkdir /nsm/logstash/config/pipeline
+    sudo -u logstash bash -c 'cat > /nsm/logstash/config/pipeline/debug.conf <<EOL
     input { stdin { } }
 
     filter {
@@ -293,29 +305,49 @@ Verify and add a new config
 
 Test out the config
 
-    sudo -u logstash /nsm/logstash/bin/logstash -f /nsm/logstash/etc/debug.conf
+    sudo -u logstash /nsm/logstash/bin/logstash -f /nsm/logstash/config/pipeline/debug.conf
 
 Paste the following into the terminal to simulate an apache log
 
     127.0.0.1 - - [11/Dec/2013:00:01:45 -0800] "GET /xampp/status.php HTTP/1.1" 200 3891 "http://cadenza/xampp/navi.php" "Mozilla/5.0 (Macintosh; Intel Mac OS X 10.9; rv:25.0) Gecko/20100101 Firefox/25.0"
 
-Create logstash service to be called when wanting to listen out on the tap
+You should see the following output
 
-    sudo bash -c 'cat > /etc/init/logstash.conf <<EOL
-    #!upstart
-    description "Logstash Service"
-    author "Blake Mackey"
+    {
+            "request" => "/xampp/status.php",
+              "agent" => "\"Mozilla/5.0 (Macintosh; Intel Mac OS X 10.9; rv:25.0) Gecko/20100101 Firefox/25.0\"",
+               "auth" => "-",
+              "ident" => "-",
+               "verb" => "GET",
+            "message" => "127.0.0.1 - - [11/Dec/2013:00:01:45 -0800] \"GET /xampp/status.php HTTP/1.1\" 200 3891 \"http://cadenza/xampp/navi.php\" \"Mozilla/5.0 (Macintosh; Intel Mac OS X 10.9; rv:25.0) Gecko/20100101 Firefox/25.0\"",
+           "referrer" => "\"http://cadenza/xampp/navi.php\"",
+         "@timestamp" => 2013-12-11T08:01:45.000Z,
+           "response" => "200",
+              "bytes" => "3891",
+           "clientip" => "127.0.0.1",
+           "@version" => "1",
+               "host" => "anon",
+        "httpversion" => "1.1",
+          "timestamp" => "11/Dec/2013:00:01:45 -0800"
+    }
 
-    start on runlevel []
-    stop on runlevel []
 
-    setgid nsm
-    setuid logstash
+    
+Edit the logstash config to load all configurations placed in pipeline directory
 
-    respawn
+    sudo vim /nsm/logstash/config/logstash.yml
+    # path.config: /nsm/logstash/config/pipeline                                      
 
-    exec /nsm/logstash/bin/logstash -f /nsm/logstash/etc/logstash.conf
-    EOL'
+Edit the /nsm/logstash/config/startup.options so that logstash can generate the correct logstash.service file.
+
+    sudo vim /nsm/logstash/config/startup.options
+    # Change LS_HOME=/nsm/logstash
+
+Generate the logstash.service file and enable it
+
+    sudo /nsm/logstash/bin/system-install
+    sudo systemctl start logstash
+    sudo systemctl enable logstash.service
 
 Add the Bro input gem to the logstash Gemfile in order to automatically parse Bro logs...no regex required.
 
@@ -355,16 +387,16 @@ Note 2: the sincedb is set to null for testing, so that every time it runs, logs
 
 Save the logstash_bro.conf below into /nsm/logstash/etc/
 
-Install Elasticsearch
+Install Elasticsearch 5.0.0-alpha5
 -------------
 
 Download and unpack
 
     cd ~
-    wget https://download.elasticsearch.org/elasticsearch/release/org/elasticsearch/distribution/tar/elasticsearch/2.2.0/elasticsearch-2.2.0.tar.gz
-    tar xvzf elasticsearch-2.2.0.tar.gz
+    wget https://download.elastic.co/elasticsearch/release/org/elasticsearch/distribution/tar/elasticsearch/5.0.0-alpha5/elasticsearch-5.0.0-alpha5.tar.gz
+    tar xvzf elasticsearch-5.0.0-alpha5.tar.gz
     sudo mkdir /nsm/elasticsearch
-    sudo mv ~/elasticsearch-2.2.0/* /nsm/elasticsearch/
+    sudo mv ~/elasticsearch-5.0.0-alpha5/* /nsm/elasticsearch/
     rm ~/elasticsearch* -rf
 
 Add elasticsearch user
@@ -373,40 +405,75 @@ Add elasticsearch user
     sudo usermod -a -G syslog elasticsearch
     sudo chown elasticsearch.nsm /nsm/elasticsearch -R
 
-Create elasticsearch job to ensure elasticsearch is always running
-
-    sudo bash -c 'cat > /etc/init/elasticsearch.conf <<EOL
-    #!upstart
-    description "elasticsearch Service"
-    author "Blake Mackey"
-
-    start on (local-filesystems and net-device-up IFACE=manager)
-    stop on [!12345]
-
-    setgid nsm
-    setuid elasticsearch
-
-    respawn
-    exec /nsm/elasticsearch/bin/elasticsearch
-    EOL'
-
-Edit /nsm/elasticsearch/etc/elasticsearch.yml to set:
+Edit /nsm/elasticsearch/config/elasticsearch.yml to set:
 
     # Set the bind address to a specific IP (IPv4 or IPv6):
     network.host: 127.0.0.1
     # Set a custom port for HTTP:
     http.port: 9200
 
-Install Kibana
+Create directories needed by SystemD
+
+    sudo mkdir /var/log /var/log/elasticsearch
+    sudo mkdir /var/lib /var/lib/elasticsearch
+
+    sudo chown elasticsearch.nsm /var/log/elasticsearch /var/lib/elasticsearch
+    
+Create elasticsearch job to ensure elasticsearch is always running
+
+    sudo bash -c 'cat > /etc/systemd/system/elasticsearch.service <<EOL
+    [Unit]
+    Description=Elasticsearch
+    After=network.target
+
+    [Service]
+    WorkingDirectory=/nsm/elasticsearch
+    User=elasticsearch
+
+    ExecStart=/nsm/elasticsearch/bin/elasticsearch -Edefault.path.logs=/var/log/elasticsearch -Edefault.path.data=/var/lib/elasticsearch -Edefault.path.conf=/nsm/elasticsearch/config
+
+    StandardOutput=journal
+    StandardError=inherit
+
+    # Specifies the maximum file descriptor number that can be opened by this process
+    LimitNOFILE=65536
+
+    # Specifies the maximum number of bytes of memory that may be locked into RAM
+    # Set to "infinity" if you use the "bootstrap.memory_lock: true" option
+    # in elasticsearch.yml and "MAX_LOCKED_MEMORY=unlimited" in /etc/sysconfig/elasticsearch
+    #LimitMEMLOCK=infinity
+
+    # Disable timeout logic and wait until process is stopped
+    TimeoutStopSec=0
+
+    # SIGTERM signal is used to stop the Java process
+    KillSignal=SIGTERM
+
+    # Java process is never killed
+    SendSIGKILL=no
+
+    # When a JVM receives a SIGTERM signal it exits with code 143
+    SuccessExitStatus=143
+
+    [Install]
+    WantedBy=multi-user.target
+    EOL'
+
+Test and enable the elasticsearch service
+    
+    sudo systemctl start elasticsearch
+    sudo systemctl enable elasticsearch.service
+
+Install Kibana 5.0.0-alpha5
 -------------
 
 Download and unpack
 
     cd ~
-    wget https://download.elastic.co/kibana/kibana/kibana-4.4.0-linux-x64.tar.gz
-    tar xvzf kibana-4.4.0-linux-x64.tar.gz
+    wget https://download.elastic.co/kibana/kibana/kibana-5.0.0-alpha5-linux-x86_64.tar.gz
+    tar xvzf kibana-5.0.0-alpha5-linux-x86_64.tar.gz
     sudo mkdir /nsm/kibana
-    sudo mv ~/kibana-4.4.0-linux-x64/* /nsm/kibana/
+    sudo mv ~/kibana-5.0.0-alpha5-linux-x86_64/* /nsm/kibana/
     rm ~/kibana* -rf
 
 Add kibana user
@@ -414,24 +481,6 @@ Add kibana user
     sudo adduser --system --ingroup nsm --home /nsm/kibana --shell /sbin/nologin kibana
     sudo usermod -a -G syslog kibana
     sudo chown kibana.nsm /nsm/kibana -R
-
-Create kibana job to ensure kibana is always running
-
-    sudo bash -c 'cat > /etc/init/kibana.conf <<EOL
-    #!upstart
-    description "Kibana Service"
-    author "Blake Mackey"
-
-    start on (local-filesystems and net-device-up IFACE=manager)
-    stop on [!12345]
-
-    setgid nsm
-    setuid kibana
-
-    respawn
-
-    exec /nsm/kibana/bin/kibana
-    EOL'
 
 Edit /nsm/kibana/etc/kibana.yml to configure these at the bare minimum:
 
@@ -441,3 +490,30 @@ Edit /nsm/kibana/etc/kibana.yml to configure these at the bare minimum:
     server.host: "0.0.0.0"
     # The Elasticsearch instance to use for all your queries.
     elasticsearch.url: "http://localhost:9200"
+
+Create directories needed by SystemD
+
+    sudo mkdir /var/lib /var/lib/kibana
+    sudo chown kibana.nsm /var/lib/kibana
+
+Create kibana job to ensure kibana is always running
+
+    sudo bash -c 'cat > /etc/systemd/system/kibana.service <<EOL
+    [Unit]
+    Description=Kibana
+     
+    [Service]
+    Type=simple
+    User=kibana
+    ExecStart=/nsm/kibana/bin/kibana "-c /nsm/kibana/config/kibana.yml"
+    Restart=always
+    WorkingDirectory=/
+
+    [Install]
+    WantedBy=multi-user.target
+    EOL'
+
+Test and enable the kibana service
+    
+    sudo systemctl start kibana
+    sudo systemctl enable kibana.service
