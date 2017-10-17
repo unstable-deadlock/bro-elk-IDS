@@ -355,7 +355,7 @@ Add the Bro input gem to the logstash Gemfile in order to automatically parse Br
 
 Update the installed plugins.
 
-    /nsm/logstash/bin/plugin install --no-verify
+    /nsm/logstash/bin/logstash-plugin install --no-verify
 
 Should result in...
 
